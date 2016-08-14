@@ -6,6 +6,7 @@ import six
 import pandr.io.utils
 import pandr.constants.rinternals
 from pandr.constants import R_XDR_INTEGER_SIZE, SIZEOF_DOUBLE, SIZEOF_INT
+from pandr.sexp import SEXP, SEXPTYPE
 
 # File format constants
 XDR_FILE = 100
@@ -25,27 +26,21 @@ class RFile(six.Iterator):
         self._min_rversion = None
 
         self._file = _open(name, mode, buffering)
-        self.readHeader()
+        self._read_header()
 
-    # read n bytes from file
     def read(self):
-        return self.next()
+        return self.read_SEXP()
 
     def __iter__(self):
         return self
 
     def __next__(self):
         try:
-            ptype, plevs, pisobj, phasattr, phastag = self.getFlags()
-            if ptype == pandr.constants.rinternals.REALSXP:
-                return self.getRealVec()
-            else:
-                return NotImplementedError('No support for SEXP type %s' % ptype)
-        except EOFError:
+            return self.read()
+        except EOFError as e:
             raise StopIteration
 
-    # Read header for format and file version
-    def readHeader(self):
+    def _read_header(self):
         magic = self._file.readline().strip()
 
         if type(magic) is bytes:
@@ -63,154 +58,210 @@ class RFile(six.Iterator):
         if 'RD' in magic:
             self._rdata = True
             if '1' in magic:
-                self.__version = 1
+                self._version = 1
             elif '2' in magic:
-                self.__version = 2
+                self._version = 2
             else:
                 raise NotImplementedError('Unsupported file version %s' % magic)
-            if self._version is not 2:
-                raise NotImplementedError("Only version 2 saves supported")
+            if self._version != 2:
+                raise NotImplementedError("Only version 2 saves supported, got %d" % self._version)
 
             ftype = self._file.readline().strip()
 
-            raise NotImplementedError('RData files not yet implemented')
-
         #assert ftype == 'X'
-        self._version = self.getInteger()
-        self._rversion = "%d.%d.%d" % pandr.io.utils.decode_version(self.getInteger())
-        self._min_rversion = "%d.%d.%d" % pandr.io.utils.decode_version(self.getInteger())
+        self._version = self.read_int()
+        self._rversion = "%d.%d.%d" % pandr.io.utils.decode_version(self.read_int())
+        self._min_rversion = "%d.%d.%d" % pandr.io.utils.decode_version(self.read_int())
 
-    def close(self):
-        self._file.close()
-
-    def getLength(self):
-        length = self.getInteger()
-
-        # very long arrays might need 64 bits to store length
-        if length is -1:
-            len1 = long( self.getInteger() )
-            len2 = long( self.getInteger() )
-            length = ( len1 << 32 ) + len2
-
-        return length
-
-    def getInteger(self):
+    def read_int(self):
         """
         Parse the next 4 bytes in the stream as an integer
         """
         if self._format == XDR_FILE:
-            return xdrlib.Unpacker(self._file.read(R_XDR_INTEGER_SIZE)).unpack_int()
+            data = xdrlib.Unpacker(self._file.read(R_XDR_INTEGER_SIZE)).unpack_int()
+
         elif self._format == ASCII_FILE:
             data = self._file.readline().strip()
             if not data:
                 raise EOFError
-            return int(data)
-
-    def getFlags(self):
-        flags = self.getInteger()
-        return pandr.io.utils.unpack_flags(flags)
-
-    def getRefIndex(self):
-        """
-        """
-        flags = self.getInteger()
-        i = flags >> 8
-        if i is 0:
-            return self.getInteger()
-        else:
-            return i
-
-    def getIntegerVec(self):
-        """
-        Read a vector of integers
-        """
-        length = self.getLength()
-        unpacker = xdrlib.Unpacker(self.read(length*R_XDR_INTEGER_SIZE))
-        data = unpacker.unpack_farray(length, unpacker.unpack_int)
+            data = int(data)
 
         return data
 
-    def getRealVec(self):
+    def read_int_array(self):
+        """
+        Read a vector of integers
+        """
+        length = self.read_array_length()
+        if self._format == XDR_FILE:
+            unpacker = xdrlib.Unpacker(self._file.read(length*R_XDR_INTEGER_SIZE))
+            data = unpacker.unpack_farray(length, unpacker.unpack_int)
+        elif self._format == ASCII_FILE:
+            data = [int(self._file.readline().strip()) for i in range(length)]
+
+        return data
+
+    def read_float_array(self):
         """
         Get a vector of real numbers from the input stream, assuming
         numbers are stored according to XDR double floating point standard
         """
-        length = self.getLength()
+        length = self.read_array_length()
 
         if self._format == XDR_FILE:
             unpacker = xdrlib.Unpacker(self._file.read(length*SIZEOF_DOUBLE))
             data = unpacker.unpack_farray(length, unpacker.unpack_double)
         else:
             data = [float(self._file.readline().strip()) for i in range(length)]
+
         return data
 
-    def getComplex(stream):
+    def read_complex(stream):
         raise NotImplementedError("Complex values not yet implemented")
 
-    def getComplexVec(stream, length):
+    def read_complex_array(stream, length):
         raise NotImplementedError("Complex values not yet implemented")
 
-    def getChar(self, n = 1):
+    def read_char(self, n = 1):
         """
         Get n characters from the stream and return them as a string
         """
         if n<0: return "NA"
         else: return self._file.read(n)
 
-    def getString(self):
-        length = self.getInteger() # null terminated strings
-        string = self.getChar(length)
+    def read_string(self):
+        length = self.read_int()
+        string = self.read_char(length)
 
         return string
 
-    def getExpression(self):
+    def read_string_array(self):
+        length = self.read_int()
+        data = [self.read_string() for i in range(length)]
+
+        if length == 1:
+            data = data[0]
+
+        return data
+
+    def read_array_length(self):
+        length = self.read_int()
+
+        # very long arrays might need 64 bits to store length
+        if length is -1:
+            len1 = long( self.read_int() )
+            len2 = long( self.read_int() )
+            length = ( len1 << 32 ) + len2
+
+        return length
+
+    def close(self):
+        self._file.close()
+
+    def getFlags(self):
+        flags = self.read_int()
+        return pandr.io.utils.unpack_flags(flags)
+
+    def getRefIndex(self):
+        """
+        """
+        flags = self.read_int()
+        i = flags >> 8
+        if i is 0:
+            return self.read_int()
+        else:
+            return i
+
+    def read_SEXP(self):
+        expression = None
         (ptype, plevs, pisobj, phasattr, phastag) = self.getFlags();
 
-        if ptype in [NILVALUE_SXP]:
-            return False
+        # numeric vectors
+        if ptype == pandr.constants.rinternals.REALSXP:
+            expression = self.read_REALSXP()
 
-        # Pairlist-like objects write their attributes (if any), tag (if
-        # any), CAR and then CDR (using tail recursion)
-        if ptype in [LISTSXP]:
-            if phasattr:
-                self.getExpression()
-            if phastag:
-                self.getExpression()
-            # CAR
-            if not self.getExpression():
-                return
-            # CDR
-            self.getExpression()
+        # string vectors
+        elif ptype == pandr.constants.rinternals.STRSXP:
+            expression = self.read_STRSXP()
 
-        # other objects write their attributes after themselves
+        # character expressions
+        elif ptype == pandr.constants.rinternals.CHARSXP:
+            expression = self.read_CHARSXP()
+
+        # integer vectors
+        elif ptype == pandr.constants.rinternals.INTSXP:
+            expression = self.read_INTSXP()
+
         else:
-            if ptype in [REALSXP]:
-                self.getRealVec()
-            elif ptype in [REFSXP]:
-                index = self.getRefIndex() - 1 # R uses base 0 indexes, need to adjust
-            elif ptype in [INTSXP]:
-                self.getIntegerVec()
-            elif ptype in [STRSXP]:
-                length=self.getLength()
-                for i in range(length):
-                    self.getExpression()
-            elif ptype in [CHARSXP]:
-                self.getString()
-            elif ptype in [SYMSXP]:
-                self.getExpression()
-                self.getExpression()
-            elif ptype in [VECSXP]:
-                length = self.getLength()
-                for i in range(length):
-                    self.getExpression()
+            raise NotImplementedError('No support for {}'.format(SEXP(ptype)))
 
-            if phasattr:
-                self.getExpression()
-            if phastag:
-                self.getExpression()
+        return expression
 
-        return True
+    def read_REALSXP(self):
+        data = self.read_float_array()
+        if len(data) == 1:
+            data = data[0]
+        return SEXP('REALSXP', data)
 
+    def read_STRSXP(self):
+        length = self.read_array_length()
+        data = [self.read_SEXP() for i in range(length)]
+        if length == 1:
+            data = data[0]
+        return SEXP('STRSXP', data)
+
+    def read_CHARSXP(self):
+        return SEXP('CHARSXP', self.read_string())
+
+    def read_INTSXP(self):
+        return SEXP('INTSXP', self.read_int_array())
+
+    # def getExpression(self):
+    #     (ptype, plevs, pisobj, phasattr, phastag) = self.getFlags();
+    #
+    #     sexp=None
+    #     if ptype in [pandr.constants.rinternals.NILVALUE_SXP]:
+    #         sexp = SEXP('NILVALUE_SXP')
+    #     # Pairlist-like objects write their attributes (if any), tag (if
+    #     # any), CAR and then CDR (using tail recursion)
+    #     elif ptype in [pandr.constants.rinternals.LISTSXP]:
+    #         sexp = SEXP('LISTSXP')
+    #         if phasattr:
+    #             sexp.attr = self.getExpression()
+    #         if phastag:
+    #             sexp.tag = self.getExpression()
+    #         # CAR
+    #         sexp.CAR = self.getExpression()
+    #         if sexp.CAR:
+    #             # CDR
+    #             sexp.CDR = self.getExpression()
+    #
+    #     # other objects write their attributes after themselves
+    #     else:
+    #         if ptype in [pandr.constants.rinternals.REALSXP]:
+    #             sexp = self.read_REALSXP()
+    #         elif ptype in [pandr.constants.rinternals.REFSXP]:
+    #             index = self.getRefIndex() - 1 # R uses base 0 indexes, need to adjust
+    #         elif ptype in [pandr.constants.rinternals.INTSXP]:
+    #             sexp = SEXP('INTSXP', self.read_int_array())
+    #         elif ptype in [pandr.constants.rinternals.STRSXP]:
+    #             length=self.read_array_length()
+    #             sexp = SEXP('STRSXP', value=[self.getExpression() for i in range(length)])
+    #         elif ptype in [pandr.constants.rinternals.CHARSXP]:
+    #             sexp = SEXP('CHARSXP', value=self.read_string())
+    #         elif ptype in [pandr.constants.rinternals.SYMSXP]:
+    #             sexp = SEXP('SYMSXP', value=[self.getExpression(), self.getExpression()])
+    #         elif ptype in [pandr.constants.rinternals.VECSXP]:
+    #             length = self.read_array_length()
+    #             sexp = SEXP('VECSXP', value=[self.getExpression() for i in range(length)])
+    #
+    #         if sexp:
+    #             if phasattr:
+    #                 sexp.attr = self.getExpression()
+    #             if phastag:
+    #                 sexp.tag = self.getExpression()
+    #
+    #     return sexp
 
 def _open(name, mode='rb', buffering=1):
     file_object = open(name, mode, buffering)

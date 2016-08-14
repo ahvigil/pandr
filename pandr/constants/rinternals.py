@@ -48,3 +48,12 @@ BCREPDEF          = 244
 BCREPREF          = 243
 EMPTYENV_SXP      = 242
 BASEENV_SXP       = 241
+
+def lookup(constant):
+    """Translate between constant name and value.
+    """
+    env = globals()
+    if type(constant) is int:
+        return filter(lambda x: x[1]==constant, env.items())[0][0]
+    else:
+        return  filter(lambda x: x[0]==constant, env.items())[0][1]

@@ -1,5 +1,6 @@
 import os
 import sys
+import pytest
 from glob import glob
 
 import gzip
@@ -8,36 +9,46 @@ import bz2
 from six import PY3
 
 import pandr.io
+import pandr.sexp
 
-def test_file_type():
+@pytest.mark.parametrize("test_file", glob('tests/data/*/*'))
+def test_file_type(test_file):
     """Test pandr.io._open returns a file like object matching the file type.
     """
-    test_files = glob('tests/data/*/*')
+    try:
+        f = pandr.io._open(test_file)
+    except NotImplementedError:
+        assert test_file.endswith('xz') # xz compression not currently supported
 
-    assert len(test_files) > 0
+    if test_file.endswith('bin'):
+        if PY3:
+            from io import BufferedReader
+            assert isinstance(f, BufferedReader)
+        else:
+            assert isinstance(f, file)
+    elif test_file.endswith('gzip'):
+        assert isinstance(f, gzip.GzipFile)
+    elif test_file.endswith('bz2'):
+        assert isinstance(f, bz2.BZ2File)
 
-    for test_file in test_files:
-        try:
-            f = pandr.io._open(test_file)
-        except NotImplementedError:
-            assert test_file.endswith('xz') # xz compression not currently supported
-
-        if test_file.endswith('bin'):
-            if PY3:
-                from io import BufferedReader
-                assert isinstance(f, BufferedReader)
-            else:
-                assert isinstance(f, file)
-        elif test_file.endswith('gzip'):
-            assert isinstance(f, gzip.GzipFile)
-        elif test_file.endswith('bz2'):
-            assert isinstance(f, bz2.BZ2File)
-
-def test_file_parity():
+@pytest.mark.parametrize("xdr_file,txt_file", [
+    ('tests/data/rds/{0}.bin'.format(x), 'tests/data/rds/{0}.txt'.format(x))
+    for x in ['x']
+])
+def test_rds_file_parity(xdr_file, txt_file):
     """Test pandr.io.RFile returns same results when reading same data in different formats.
     """
-    xdr = pandr.io.RFile('tests/data/rds/x.bin')
-    txt = pandr.io.RFile('tests/data/rds/x.txt')
+    xdr = pandr.io.RFile(xdr_file)
+    txt = pandr.io.RFile(txt_file)
 
     for (x, t) in zip(xdr, txt):
         assert x==t
+
+@pytest.mark.parametrize("test_file", glob('tests/data/types/*'))
+def test_basic_types(test_file):
+    try:
+        f = pandr.io.RFile(test_file)
+        data = f.read_SEXP()
+        assert type(data) is pandr.sexp.SEXP
+    except NotImplementedError:
+        pytest.skip("Not implemented")
