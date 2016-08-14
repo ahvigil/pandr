@@ -126,8 +126,14 @@ class RFile(six.Iterator):
         """
         Get n characters from the stream and return them as a string
         """
-        if n<0: return "NA"
-        else: return self._file.read(n)
+        if n<0:
+            data = "NA"
+        else:
+            data = self._file.read(n)
+            if type(data) is bytes:
+                data = data.decode('ascii')
+
+        return data
 
     def read_string(self):
         length = self.read_int()
