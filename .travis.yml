@@ -11,7 +11,6 @@ python:
   - "pypy"
   - "pypy3"
 env:
-  - PANDAS_VERSION=0.18.2
   - PANDAS_VERSION=0.18.1
   - PANDAS_VERSION=0.18.0
   - PANDAS_VERSION=0.17.0

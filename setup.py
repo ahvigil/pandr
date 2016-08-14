@@ -12,6 +12,7 @@ setup(
     description = ("R compatible pandas dataframe serialization."),
     setup_requires=['pytest-runner'],
     tests_require=['pytest'],
+    install_requires=['six'],
     license = "MIT",
     packages=['pandr']
 )
