@@ -7,7 +7,15 @@ class SEXP(object):
         self.CDR = None
         self.tag = None
         self.attr = None
-        self.value = value
+        self._value = value
+
+    @property
+    def value(self):
+        value = self._value
+        while type(value) is SEXP:
+            value = value.value
+
+        return value
 
     def __eq__(self, other):
         return (self.value == other.value and

@@ -198,12 +198,16 @@ class RFile(six.Iterator):
         return expression
 
     def read_REALSXP(self):
+        """Numeric vector expression.
+        """
         data = self.read_float_array()
         if len(data) == 1:
             data = data[0]
         return SEXP('REALSXP', data)
 
     def read_STRSXP(self):
+        """Vector of strings.
+        """
         length = self.read_array_length()
         data = [self.read_SEXP() for i in range(length)]
         if length == 1:
@@ -211,9 +215,13 @@ class RFile(six.Iterator):
         return SEXP('STRSXP', data)
 
     def read_CHARSXP(self):
+        """Character expression.
+        """
         return SEXP('CHARSXP', self.read_string())
 
     def read_INTSXP(self):
+        """Integer vector expression.
+        """
         return SEXP('INTSXP', self.read_int_array())
 
     # def getExpression(self):

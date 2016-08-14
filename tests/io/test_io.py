@@ -32,8 +32,8 @@ def test_file_type(test_file):
         assert isinstance(f, bz2.BZ2File)
 
 @pytest.mark.parametrize("xdr_file,txt_file", [
-    ('tests/data/rds/{0}.bin'.format(x), 'tests/data/rds/{0}.txt'.format(x))
-    for x in ['x']
+    ('tests/data/types/{0}.bin'.format(x), 'tests/data/types/{0}.txt'.format(x))
+    for x in ['integer_vec', 'numeric']
 ])
 def test_rds_file_parity(xdr_file, txt_file):
     """Test pandr.io.RFile returns same results when reading same data in different formats.
