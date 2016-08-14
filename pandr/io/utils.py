@@ -1,9 +1,9 @@
 def decode_version(packed):
     """Decode packed R version number into a human readable format.
     """
-    v = packed / 65536
+    v = packed // 65536
     packed %= 65536
-    p = packed / 256
+    p = packed // 256
     packed %= 256
     s = packed
     return (v, p, s)

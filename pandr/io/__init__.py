@@ -1,6 +1,7 @@
 import xdrlib
 from gzip import GzipFile
 from bz2 import BZ2File
+import six
 
 import pandr.io.utils
 import pandr.constants.rinternals
@@ -11,7 +12,7 @@ XDR_FILE = 100
 BINARY_FILE = 101
 ASCII_FILE = 102
 
-class RFile(object):
+class RFile(six.Iterator):
     """
     """
     def __init__(self, name, mode='rb', buffering=1):
@@ -33,7 +34,7 @@ class RFile(object):
     def __iter__(self):
         return self
 
-    def next(self):
+    def __next__(self):
         try:
             ptype, plevs, pisobj, phasattr, phastag = self.getFlags()
             if ptype == pandr.constants.rinternals.REALSXP:
@@ -46,6 +47,9 @@ class RFile(object):
     # Read header for format and file version
     def readHeader(self):
         magic = self._file.readline().strip()
+
+        if type(magic) is bytes:
+            magic = str(magic)
 
         if 'A' in magic:
             self._format = ASCII_FILE
@@ -208,20 +212,20 @@ class RFile(object):
         return True
 
 
-def _open(*args, **kwargs):
-    file_object = open(*args, **kwargs)
+def _open(name, mode='rb', buffering=1):
+    file_object = open(name, mode, buffering)
     magic = file_object.read(3)
 
     # gzip
-    if magic[0] == '\x1f' and magic[1] == '\x8b' and magic[2] == '\x08':
-        file_object = GzipFile(*args, **kwargs)
+    if magic == b'\x1f\x8b\x08':
+        file_object = GzipFile(name, mode, buffering)
 
     # bz2
-    elif magic[0]=='\x42' and magic[1]=='\x5a' and magic[2]=='\x68':
-        file_object = BZ2File(*args, **kwargs)
+    elif magic == b'BZh':
+        file_object = BZ2File(name, mode, buffering)
 
     # xz
-    elif magic[0]=='\xfd' and magic[1]=='\x37' and magic[2]=='\x7a':
+    elif magic == b'\xfd7z':
         raise NotImplementedError("xz compression not supported")
 
     else:
