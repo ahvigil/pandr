@@ -31,7 +31,7 @@ def unpack_flags(flags):
     phasattr = True if flags & (1 << 9) else False
     phastag = True if flags & (1 << 10) else False
 
-    ptype = flags & 255     # 255 == 1111 1111 1110
+    ptype = flags & 255     # 255 ==  0000 1111 1111
     plevs = flags >> 12
 
     return (ptype, plevs, pisobj, phasattr, phastag)
