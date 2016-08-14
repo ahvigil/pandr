@@ -1,10 +1,11 @@
 import os
+import sys
 from glob import glob
 
-from gzip import GzipFile
-from bz2 import BZ2File
 import gzip
 import bz2
+
+from six import PY3
 
 import pandr.io
 
@@ -22,7 +23,11 @@ def test_file_type():
             assert test_file.endswith('xz') # xz compression not currently supported
 
         if test_file.endswith('bin'):
-            assert isinstance(f, file)
+            if PY3:
+                from io import BufferedReader
+                assert isinstance(f, BufferedReader)
+            else:
+                assert isinstance(f, file)
         elif test_file.endswith('gzip'):
             assert isinstance(f, gzip.GzipFile)
         elif test_file.endswith('bz2'):
