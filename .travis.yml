@@ -1,15 +1,15 @@
 language: python
 python:
-  - "2.6"
-  - "2.7"
-  - "3.2"
-  - "3.3"
-  - "3.4"
-  - "3.5"
-  - "3.5-dev" # 3.5 development branch
-  - "nightly" # currently points to 3.6-dev
-  - "pypy"
-  - "pypy3"
+  - '2.6'
+  - '2.7'
+  - '3.2'
+  - '3.3'
+  - '3.4'
+  - '3.5'
+  - 3.5-dev
+  - nightly
+  - pypy
+  - pypy3
 env:
   - PANDAS_VERSION=0.18.1
   - PANDAS_VERSION=0.18.0
@@ -19,9 +19,14 @@ env:
   - PANDAS_VERSION=0.14.0
   - PANDAS_VERSION=0.13.0
   - PANDAS_VERSION=0.12.0
-# command to install dependencies
 install:
   - pip install -q pandas==$PANDAS_VERSION
   - python setup.py install
-# command to run tests
 script: python setup.py test
+deploy:
+  provider: pypi
+  user: ahvigil
+  password:
+    secure: tBeZx8yS2Fw6UTqsxp0SsFw/15ECwIh8w6K4cJMl3u9YcpIaHc8slOeJuvL1lfKTS43T90uvkq0GPaBfA7K0Du1Bcn1TRu3D75kbiUQAn0VF6WCXG36Yjm2qfvkWwH+XP6ENFFhAvbV9/nWEqBWKG66PfEYM3AhKA4qp+y+G6VxDyY7I8Mw96qQJztQn/DbniwKi5e4Z6gcihwaNWVvYVvqV8QFWmhPhyXBO7zMB5aZJqWIY5ruMb2PzygQgES3Zs8n6TQPCZc7wST43jWRlHCqaLEfQFGjmwAxtNmqLTyvZzZd70WE+M6GnrO5/hedbaglR7DhKsEu+xK7DtoxY+LGhddFiJHJIoEp5TbY656V+mpEq2HoLBUuFOAWk45tY4bnMz7v43ELz3iNlRrQZfm+DxTQZksZeKvQPnG6tNwIEYfKex6/HqPcGhlwG6O40LUELAblrvyIv+X30O8PnJps2U0phSMTMxb/a9AeBzpeP0iuEGQ4z4GQzN53UQzUFnEMn4Uu2u26kElUtq6EgmocBIAod/ZfwvHP2JYdKWIL77VllIQNSgPfkFCXifN21hw/TK5Nd8zC9ZlSFlaGGrj0ubc14OEvDHRve5QCTHhDtVWWcX6KsEKpYwWbV9WsqNO5UwS9Gzb4jSjOlOEvRCnmMwLSRWaiQfyymowzkp3w=
+  on:
+    tags: true
