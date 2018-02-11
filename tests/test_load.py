@@ -10,6 +10,8 @@ from glob import glob
     [(f, [1,2,3,4,5]) for f in glob('tests/data/types/integer_vec.*')]
 )
 def test_simple_rds_load(filename, expected):
+    """Test loading files from data folder.
+    """
     try:
         assert pandr.load(filename) == expected
     except NotImplementedError:
