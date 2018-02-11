@@ -1,25 +1,15 @@
 import pandr.constants.rinternals
 
 class SEXP(object):
-    def __init__(self, sexprtype, value=None):
+    def __init__(self, sexprtype, CAR=None):
         self._type = SEXPTYPE(sexprtype)
-        self.CAR = None
+        self.CAR = CAR
         self.CDR = None
         self.tag = None
         self.attr = None
-        self._value = value
-
-    @property
-    def value(self):
-        value = self._value
-        while type(value) is SEXP:
-            value = value.value
-
-        return value
 
     def __eq__(self, other):
-        return (self.value == other.value and
-                self._type == other._type and
+        return (self._type == other._type and
                 self.CAR == other.CAR and
                 self.tag == other.tag and
                 self.attr == other.attr)
@@ -27,8 +17,15 @@ class SEXP(object):
     def __repr__(self):
         return '{}: {}'.format(
             self._type,
-            self.value
+            self.CAR
         )
+
+    @property
+    def value(self):
+        v = self.CAR
+        while isinstance(v, SEXP):
+            v = v.CAR
+        return v
 
 class SEXPTYPE(object):
     def __init__(self, sexprtype):

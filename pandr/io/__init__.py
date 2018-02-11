@@ -14,7 +14,7 @@ BINARY_FILE = 101
 ASCII_FILE = 102
 
 class RFile(six.Iterator):
-    """
+    """Iterator that yields SExp objects read from a file.
     """
     def __init__(self, name, mode='rb', buffering=1):
         self._file=None
@@ -25,18 +25,17 @@ class RFile(six.Iterator):
         self._rversion = None
         self._min_rversion = None
 
+        self.ref_index = []
+
         self._file = _open(name, mode, buffering)
         self._read_header()
-
-    def read(self):
-        return self.read_SEXP()
 
     def __iter__(self):
         return self
 
     def __next__(self):
         try:
-            return self.read()
+            return self.read_SEXP()
         except EOFError as e:
             raise StopIteration
 
@@ -164,7 +163,7 @@ class RFile(six.Iterator):
     def close(self):
         self._file.close()
 
-    def getFlags(self):
+    def get_flags(self):
         flags = self.read_int()
         return pandr.io.utils.unpack_flags(flags)
 
@@ -180,7 +179,7 @@ class RFile(six.Iterator):
 
     def read_SEXP(self):
         expression = None
-        (ptype, plevs, pisobj, phasattr, phastag) = self.getFlags();
+        (ptype, plevs, pisobj, phasattr, phastag) = self.get_flags();
 
         # numeric vectors
         if ptype == pandr.constants.rinternals.REALSXP:
@@ -197,6 +196,21 @@ class RFile(six.Iterator):
         # integer vectors
         elif ptype == pandr.constants.rinternals.INTSXP:
             expression = self.read_INTSXP()
+
+        elif ptype == pandr.constants.rinternals.VECSXP:
+            expression = self.read_VECSXP()
+
+        elif ptype == pandr.constants.rinternals.LISTSXP:
+            expression = self.read_LISTSXP(plevs, pisobj, phasattr, phastag)
+
+        elif ptype == pandr.constants.rinternals.SYMSXP:
+            expression = self.read_SYMSXP()
+
+        elif ptype == pandr.constants.rinternals.NILVALUE_SXP:
+            return SEXP('NILVALUE_SXP')
+
+        elif ptype == pandr.constants.rinternals.REFSXP:
+            expression = self.ref_index[self.getRefIndex()]
 
         else:
             raise NotImplementedError('No support for {}'.format(SEXP(ptype)))
@@ -230,8 +244,33 @@ class RFile(six.Iterator):
         """
         return SEXP('INTSXP', self.read_int_array())
 
+    def read_SYMSXP(self):
+        expression = self.read_SEXP()
+        self.ref_index.append(expression)
+        return expression
+
+    def read_VECSXP(self):
+        length = self.read_array_length()
+        data = []
+        for i in range(length):
+            data.append(self.read_SEXP())
+
+        return SEXP('VECSXP', data)
+
+    def read_LISTSXP(self, plevs, pisobj, phasattr, phastag):
+        sexp = SEXP('LISTSXP')
+        if phasattr:
+            sexp.attr = self.read_SEXP()
+        if phastag:
+            sexp.tag = self.read_SEXP()
+
+        sexp.CAR = self.read_SEXP()
+        sexp.CDR = self.read_SEXP()
+
+        return sexp
+
     # def getExpression(self):
-    #     (ptype, plevs, pisobj, phasattr, phastag) = self.getFlags();
+    #     (ptype, plevs, pisobj, phasattr, phastag) = self.get_flags();
     #
     #     sexp=None
     #     if ptype in [pandr.constants.rinternals.NILVALUE_SXP]:

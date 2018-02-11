@@ -13,6 +13,6 @@ def test_simple_rds_load(filename, expected):
     """Test loading files from data folder.
     """
     try:
-        assert pandr.load(filename) == expected
+        assert pandr.load(filename).value == expected
     except NotImplementedError:
         pytest.skip("Not implemented")
